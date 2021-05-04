@@ -335,7 +335,7 @@ client.on('message', async message => {
   }
   //COMMAND: NP || NOW PLAYING
   if (command === 'np') {
-    if (!musictitle.length) {
+    if (!musictitle.length || songIndex == 0) {
       return message.channel.send('Could Not Get Playlist Information, Please Make Sure The Bot Played Music At Least Once!')
     } else {
       const input = `${musictitle[songIndex - 1]} [${songIndex}/${queue.length}]\nDuration: ${durations[songIndex - 1]}s`
@@ -388,6 +388,9 @@ client.on('message', async message => {
         feedback = feedbackjson.feedback[i]
         feedbackarr.push(feedback)
         i++
+      }
+      if (!feedback){
+        return message.channel.send('No messages in inbox!')
       }
       const embed = new Discord.MessageEmbed()
         .setTitle(`-Feedback Inbox-`)
