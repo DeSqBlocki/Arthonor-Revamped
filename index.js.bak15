@@ -1,0 +1,1751 @@
+const Discord = require('discord.js');
+const config = require('./config.json');
+const client = new Discord.Client({ partials: ['MESSAGE', 'REACTION'] });
+const prefix = '$';
+
+const fs = require('fs');
+const { waitForDebugger } = require('inspector');
+const { exit } = require('process');
+const { Console } = require('console');
+const { isNull } = require('util');
+const userData = JSON.parse(fs.readFileSync('Storage/userData.json', 'utf8'));
+const birthdays = JSON.parse(fs.readFileSync('Storage/birthdays.json', 'utf8'));
+const wgelist = JSON.parse(fs.readFileSync('Storage/wge.json', 'utf8'))
+const nutCooldown = new Set();
+const ms = require('ms')
+const ytdl = require('ytdl-core');
+const ytpl = require('ytpl')
+const ytSearch = require('yt-search');
+const { getInfo } = require('ytdl-core');
+const queue = []
+const durations = [];
+const musictitle = [];
+const feedbackjson = JSON.parse(fs.readFileSync('Storage/feedback.json', 'utf8'));
+
+
+client.commands = new Discord.Collection();
+
+const commandFiles = fs.readdirSync('./commands/').filter(file => file.endsWith('.js'));
+for (const file of commandFiles) {
+  const command = require(`./commands/${file}`);
+
+  client.commands.set(command.name, command);
+}
+
+//START OF EVENT (READY)
+client.on('ready', async () => {
+  //START OF BOT INFOS
+  console.log('Starting Bot. . .\r\n');
+  client.user.setActivity("Red Dead Depression", {
+    type: "STREAMING",
+    url: "https://www.twitch.tv/desq_blocki",
+  });
+  //END OF BOT INFOS
+
+  //START OF BDAYCHECKER  
+  var currentdate = new Date();
+  var bdaycheck = `${(currentdate.getDate() < 10 ? '0' : '') + currentdate.getDate()}.${((currentdate.getMonth() + 1) < 10 ? '0' : '') + (currentdate.getMonth() + 1)}.`
+  var key, count = 0;
+  for (key in birthdays.geburtstage) {
+    count++;
+  };
+  //counts entries of birthdays
+
+  var i = 0;
+  var chek = 0;
+  var bdid = 0;
+  const guild = client.guilds.cache.get('353902391021535242')
+  const bdrole = guild.roles.cache.get('702877228857557002')
+
+  do {
+    if (birthdays.geburtstage[i].bday === bdaycheck) {
+      chek = 1;
+      bdid = i;
+    }
+    let member = guild.members.cache.get(birthdays.geburtstage[i].id)
+    member.roles.remove(bdrole)
+    //removes birthday role for every user
+    i++;
+  } while (i != count);
+  if (chek == 1) {
+    console.log('Heute ist ein Geburtstag! ' + bdaycheck);
+    //logs current date
+    let member = guild.members.cache.get(birthdays.geburtstage[bdid].id)
+    member.roles.add(bdrole);
+    //gives user the birthday role
+    // const channel = client.channels.cache.find(channel => channel.name === 'hermeskammer')
+    // channel.send(`Alles Gute zum Geburtstag <@${birthdays.geburtstage[bdid].id}>!`);
+    //caches channel and sends Birthday wishes
+  } else {
+    console.log('Heute ist kein Geburtstag! ' + bdaycheck);
+    //logs current date
+  }
+  //END OF BDAYCHECKER
+
+  console.log(`Es ist ${(currentdate.getHours() < 10 ? '0' : '') + currentdate.getHours()}:${(currentdate.getMinutes() < 10 ? '0' : '') + currentdate.getMinutes()}:${(currentdate.getSeconds() < 10 ? '0' : '') + currentdate.getSeconds()}`)
+  //logs current timestamp
+
+  //START OF TIMER
+  i = 0
+  var uid = 0
+  while (i != userData.Honor.length) {
+    if (!userData.Honor[i].time) {
+    } else {
+      uid = i
+      var dtarr = userData.Honor[uid].time
+      var d = dtarr.split(",")
+      if (d[0] === '') {
+        d.shift()
+      }
+      var f = 0
+      while (f != d.length) {
+        if (d[f] < currentdate.getTime()) {
+          console.log(d[f] + ' was deleted from ' + userData.Honor[uid].id)
+          d.splice(f, 1)
+        } else {
+          console.log(`Timer with ${d[f] - currentdate.getTime()} ms remaining was restarted for ${userData.Honor[uid].id}`)
+          setTimeout(() => {
+            const channel = client.channels.cache.find(channel => channel.name === 'automata')
+            channel.send(`<@${userData.Honor[uid].id}> Dein Timer ist abgelaufen während ich offline war :c`)
+            let g = f
+            console.log(d[g] + ' was deleted from ' + userData.Honor[uid].id)
+            d.splice(g, 1)
+          }, d[f] - currentdate.getTime());
+          f++
+        }
+
+      }
+      userData.Honor[uid].time = d.join(",")
+      fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+        if (err) console.error(err)
+      });
+    }
+
+
+    i++
+  }
+  //END OF TIMER
+
+  //START OF WGE TIMER
+  var i2 = 0
+
+  while (i2 != wgelist.teilnahme.length) {
+    if (!wgelist.teilnahme[i2].time) {
+      //ignore empty/non-existent entries
+    } else {
+      function msToTime(duration) {
+        var milliseconds = parseInt((duration % 1000) / 100),
+          seconds = Math.floor((duration / 1000) % 60),
+          minutes = Math.floor((duration / (1000 * 60)) % 60),
+          hours = Math.floor((duration / (1000 * 60 * 60)) % 24),
+          days = Math.floor((duration / (1000 * 60 * 60 * 24)) % 7);
+
+        days = (days < 10) ? "0" + days : days;
+        hours = (hours < 10) ? "0" + hours : hours;
+        minutes = (minutes < 10) ? "0" + minutes : minutes;
+        seconds = (seconds < 10) ? "0" + seconds : seconds;
+
+
+        return days + "d " + hours + "h " + minutes + "m " + seconds + "s";
+      }
+      console.log(`WGE Thema: [${wgelist.teilnahme[i2].theme}] restarted! ${msToTime(wgelist.teilnahme[i2].time - currentdate.getTime())} remaining`)
+      if ((wgelist.teilnahme[i2].time - 86400000) <= currentdate.getTime()) {
+        let channel = client.channels.cache.find(channel => channel.name === 'worlds-greatest-expert')
+        channel.send(`<@${wgelist.teilnahme[i2].id}>, Du hast noch weniger als 24h verbleibend für dein Thema: ${wgelist.teilnahme[i2].theme}!`)
+      }
+      //log the successful restart of a wge timer and its remaining time
+      var wgeid = i2
+      setTimeout(() => {
+        const channel = client.channels.cache.find(channel => channel.name === 'worlds-greatest-expert')
+        channel.send(`<@${wgelist.teilnahme[wgeid].id}>, deine Zeit ist abgelaufen! Tickets werden zurückgesetzt. . .`)
+        delete wgelist.teilnahme[wgeid].time
+        delete wgelist.teilnahme[wgeid].theme
+        var j = 0
+        while (j != wgelist.teilnahme.length) {
+          if (wgelist.teilnahme[j].tickets >= 2) {
+            wgelist.teilnahme[j].tickets--
+          }
+          j++
+        }
+        wgelist.teilnahme[wgeid].tickets = 0
+        fs.writeFile('Storage/wge.json', JSON.stringify(wgelist), (err) => {
+          if (err) console.error(err)
+        });
+        //restart any TimeOut of the WGE Timer (total of 1 week)
+      }, wgelist.teilnahme[i2].time - currentdate.getTime());
+    }
+    i2++
+  }
+  //END OF WGE TIMER
+
+  console.log('');
+  console.log('HonorCounter is ready!');
+  console.log('');
+
+  //START OF TARTAROS MUSIC
+  const voicechannel = guild.channels.cache.get('353903072310722561')
+  const connection = await voicechannel.join()
+  voicechannel.guild.me.edit({ mute: false })
+
+  const playlist = await ytpl('PLjSh2s1ASTgsSdjCgFbpo18RAYF_dHf46')
+  var i = 0
+  var tdur = 0
+  for (var property in playlist.items) {
+    queue[i] = playlist.items[property].shortUrl
+    durations[i] = playlist.items[property].durationSec * 1000
+    musictitle[i] = playlist.items[property].title
+    tdur += playlist.items[property].durationSec * 1000
+    i++
+  }
+
+  function streaming() {
+    const currentdate = new Date()
+    var stream = ytdl(queue[i], { filter: 'audioonly' })
+    connection.play(stream, { seek: 0, volume: 0.5 })
+    console.log(`[${(currentdate.getHours() < 10 ? '0' : '') + currentdate.getHours()}:${(currentdate.getMinutes() < 10 ? '0' : '') + currentdate.getMinutes()}] - Now Playing: ${musictitle[i]} [${i + 1}/${queue.length}]`)
+    i++
+  }
+  const delay = ms => new Promise(res => setTimeout(res, ms));
+  const loop = async () => {
+    streaming()
+    await delay(durations[i])
+  }
+  var i = 0
+  var round = 1
+  while (i < queue.length) {
+    await loop()
+    if (i == queue.length) {
+      console.log(`Finished Round: ${round}`)
+      i = 0
+      round++
+    }
+  }
+  //repeats it after all songs have been played
+
+
+  //END OF TARTAROS MUSIC
+
+});
+
+
+//END OF EVENT (READY)
+client.on("debug", message => {
+  if (message.includes('VOICE')) console.log(message)
+})
+//START OF EVENT (MEMBER JOIN)
+client.on('guildMemberAdd', member => {
+  const channel = client.channels.cache.find(channel => channel.name === 'hermeskammer')
+  channel.send('Willkommen auf dem Olymp, <@' + member.user + '>! Bitte werf einen Blick auf <#455023824791011338>')
+  console.log(member.user.username + ' joined');
+  member.roles.add('400722216028733444')
+});
+//END OF EVENT (MEMBER JOIN)
+
+//START OF EVENT (MEMBER LEAVE)
+client.on('guildMemberRemove', guildMemberRemove => {
+  console.log(guildMemberRemove.user.username + ' left');
+});
+//END OF EVENT (MEMBER LEAVE)
+
+//START OF EVENT (MESSAGE SENT)
+client.on('message', async message => {
+  if (!message.content.startsWith(prefix) || message.author.bot) return;
+  //if message doesn't start with the bot prefix or author is a bot, then ignore
+  const args = message.content.slice(prefix.length).split(/ +/);
+  //iterate args array by splitting each space into its own entry
+  const command = args.shift().toLowerCase();
+  function getUserFromMention(mention) {
+    //creates function for mentions
+    if (!mention) return;
+
+    if (mention.startsWith('<@') && mention.endsWith('>')) {
+      mention = mention.slice(2, -1);
+
+      if (mention.startsWith('!')) {
+        mention = mention.slice(1);
+      }
+
+      return client.users.cache.get(mention);
+      //returns valid user infos
+    }
+  }
+  if (command === 'feedback') {
+    if (!args.length) {
+      return message.channel.send('Please specify something!')
+    }
+    const feedback = args.join(' ')
+    console.log(feedback)
+    feedbackjson.feedback.push(feedback)
+    fs.writeFile('Storage/feedback.json', JSON.stringify(feedbackjson), (err) => {
+      if (err) console.error(err)
+    });
+    return message.channel.send(`[${feedback}] sent.`)
+  }
+  if (command === 'inbox') {
+    if (message.author.id === '140508899064283136') {
+      var feedback
+      var feedbackarr = []
+      var i = 0
+      while (i != feedbackjson.feedback.length) {
+        feedback = feedbackjson.feedback[i]
+        feedbackarr.push(feedback)
+        i++
+      }
+      const embed = new Discord.MessageEmbed()
+        .setTitle(`-Feedback Inbox-`)
+        .setColor(0x51267)
+        .addFields({ name: 'Feedback:', value: feedbackarr, inline: true });
+      message.channel.send(embed);
+    } else {
+      return message.channel.send('You have no permission to use this command!')
+    }
+  }
+  if (command === 'gibnuts') {
+    const user = getUserFromMention(args[0])
+    const author = message.author
+    if (!user || !args[1] || isNaN(args[1])) {
+      return message.channel.send(`missing argument(s), please refer to [$help ${command}]`)
+    }
+    if (user.id === author.id) {
+      return message.channel.send('Du kannst dir nicht selber Nuts geben!')
+    }
+
+    const transfer = parseInt(args[1])
+
+    var uid = 0
+    var i = 0
+    var check = 0
+
+    do {
+      if (userData.Honor[i].id === author.id) {
+        uid = i;
+        check = 1
+      }
+      i++;
+      //standard search loop
+    } while (i != userData.Honor.length)
+
+    if (check === 1) {
+      //author is in database
+      if (userData.Honor[uid].nuts < transfer) {
+        return message.channel.send('Du hast nicht genug Nuts!')
+      }
+      var uid2 = 0
+      var i2 = 0
+      var check2 = 0
+      do {
+        if (userData.Honor[i2].id === user.id) {
+          uid2 = i2;
+          check2 = 1
+        }
+        i2++;
+        //standard search loop
+      } while (i2 != userData.Honor.length)
+      if (check2 === 1) {
+        //target is in database
+        userData.Honor[uid2].nuts += transfer
+        userData.Honor[uid].nuts -= transfer
+        message.channel.send(`<@${author.id}> hat <@${user.id}> **${transfer}** Nuts gesendet     <:chestnut:829906666551902238>➕➕`)
+      } else {
+        //target is not in database
+        return message.channel.send('Ich kenne diese Person leider nicht :(')
+      }
+    } else {
+      //author is not in database
+      return message.channel.send('Du hast noch keine Nuts gesammelt!')
+    }
+    fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+      if (err) console.error(err)
+    });
+  }
+  //COMMAND: HELLBOT
+  // if (command === 'hellbot') {
+  //   const guild = client.guilds.cache.get('353902391021535242')
+  //   const serverQueue = queue.get(guild.id)
+  //   const voicechannel = guild.channels.cache.get('353903072310722561')
+
+  //   const playlist = await ytpl('PLjSh2s1ASTgsSdjCgFbpo18RAYF_dHf46')
+  //   var songs = []
+  //   var titles = []
+  //   var i = 0
+  //   for (var property in playlist.items) {
+  //     songs[i] = playlist.items[property].shortUrl
+  //     titles[i] = playlist.items[property].title
+  //     i++
+  //   }
+  //   let song = {}
+  //   var i = 0
+  //   const videoPlayer = async (guild, song) => {
+  //     const songQueue = queue.get(guild.id)
+  //     if (!song) {
+
+  //     }
+  //     const stream = ytdl(song.url, { filter: 'audioonly' })
+  //     songQueue.connection.play(stream, { seek: 0, volume: 0.5 })
+  //       .on('finish', () => {
+  //         songQueue.songs.shift()
+  //         console.log('splicing. . .')
+  //         videoPlayer(guild, songQueue.songs[0])
+  //       })
+  //     console.log(`Now Playing: ${song.title}`)
+  //   }
+  //   while (i < songs.length) {
+  //     if (ytdl.validateURL(songs[i])) {
+  //       song = { title: titles[i], url: songs[i] }
+  //       console.log(`${song.title} was added to the queue!`)
+  //     }
+  //     i++
+  //   }
+  //   console.log(serverQueue)
+  //   if (!serverQueue) {
+  //     const queueConstructor = {
+  //       voicechannel: voicechannel,
+  //       connection: null,
+  //       songs: []
+  //     }
+
+  //     queue.set(guild.id, queueConstructor)
+  //     queueConstructor.songs.push(song)
+
+  //     try {
+  //       const connection = await voicechannel.join()
+  //       queueConstructor.connection = connection
+  //       voicechannel.guild.me.edit({ mute: false })
+  //       videoPlayer(guild, queueConstructor.songs[0])
+  //     } catch (error) {
+  //       queue.delete(guild.id)
+  //       throw error
+  //     }
+  //   } else {
+  //     serverQueue.songs.push(song)
+  //     return console.log(song + ' added')
+  //   }
+
+
+  // }
+
+  //COMMAND: MITTWOCH
+  if (command === 'mittwoch') {
+    var date = new Date()
+    var weekdays = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag']
+
+    var filename
+
+    if (weekdays[date.getDay()] == "Mittwoch") {
+      filename = "wednesday"
+      message.channel.send("Es ist Mittwoch, meine Kerle!")
+    } else {
+      filename = "notwednesday"
+      message.channel.send("Es ist nicht Mittwoch, meine Kerle . . .")
+    }
+    const attachment = new Discord.MessageAttachment(`assets/${filename}.jpg`, `${filename}.jpg`);
+    const embed = new Discord.MessageEmbed()
+      .setTitle(`${filename}.jpg`)
+      .setColor(0x51267)
+      .setTimestamp()
+      .attachFiles(attachment)
+      .setImage(`attachment://${filename}.jpg`);
+    message.channel.send(embed)
+  }
+  //COMMAND: WGE
+  if (command === 'wge') {
+    var sur = args[0]
+    if (!sur) {
+      return message.channel.send(`missing argument(s), please refer to [$${command} help]`)
+    }
+    if (sur === 'set') {
+      var user = getUserFromMention(args[1])
+      if (!user || !args[2]) {
+        return message.channel.send(`missing argument(s), please refer to [$help ${command}]`)
+      }
+      var theme = args.join(' ').slice(args[0].length + args[1].length + 2)
+      console.log(theme)
+      console.log(args)
+      theme = theme.trimStart()
+
+      var uid = 0
+      var i = 0
+      var search = 0
+
+      while (search != wgelist.teilnahme.length) {
+        if (wgelist.teilnahme[search].time) {
+          delete wgelist.teilnahme[search].time
+          delete wgelist.teilnahme[search].theme
+          fs.writeFile('Storage/wge.json', JSON.stringify(wgelist), (err) => {
+            if (err) console.error(err)
+          });
+        }
+        search++
+        //searches database for existing data and deletes excess entries
+      }
+
+      while (i != wgelist.teilnahme.length) {
+        if (wgelist.teilnahme[i].id === user.id) {
+          uid = i
+        }
+        i++
+        //searches database for user and save position
+      }
+
+      if (!wgelist.teilnahme[uid]) {
+        return message.channel.send(`${user} ist noch nicht in der Teilnehmerliste!`)
+        //if user doesn't exist in the database, return message
+      } else if (wgelist.teilnahme[uid].yn === "n") {
+        message.channel.send(`${user} nimmt nicht an WGE teil! Bitte wähle eine andere Person`)
+        //if user does exist in the database, but doesn't participate at WGE, return message
+      } else if (wgelist.teilnahme[uid].yn === "y") {
+        message.channel.send(`${user}, du wurdest ausgewählt! Du hast nun 7 Tage Zeit, um deine Expertise zum Thema "${theme}" zur Schau zu stellen`)
+        //if user does exist in the databse and agrees to particpate, then return message and theme and start timer
+
+
+        var time = new Date()
+        //get current time in ms
+        wgelist.teilnahme[uid].time = time.getTime() + 604800000
+        //add 1 week in ms to current time and store
+        wgelist.teilnahme[uid].theme = theme
+        //set theme in database
+        fs.writeFile('Storage/wge.json', JSON.stringify(wgelist), (err) => {
+          if (err) console.error(err)
+        });
+        //write changes
+      }
+    } else if (sur === 'random') {
+      if (!args[1]) {
+        return message.channel.send(`missing argument(s), please refer to [$${command} help]`)
+      }
+      var theme = args.join(' ').slice(args[0].length + 1)
+      theme = theme.trimStart()
+      console.log(theme)
+      console.log(args)
+
+      //gets user by % chance from wge
+      var uid = 0
+      var i = 0
+      var users = []
+      var tickets = []
+      var count = 0
+      var alltickets = 0
+
+      while (i != wgelist.teilnahme.length) {
+        if (wgelist.teilnahme[i].yn === 'y') {
+          if (wgelist.teilnahme[i].tickets === 0) {
+            //skip 0%
+          } else {
+            users[count] = wgelist.teilnahme[i].id
+            tickets[count] = wgelist.teilnahme[i].tickets
+            alltickets += wgelist.teilnahme[i].tickets
+            //remember users and their tickets
+          }
+          count++
+          //makes up for skips
+        }
+        if (wgelist.teilnahme[i].time) {
+          delete wgelist.teilnahme[i].time
+          delete wgelist.teilnahme[i].theme
+        }
+        i++
+      }
+      var random
+      var nusers = []
+      var ntickets = []
+      count = 0
+      i = 0
+      var winid = 0
+      var winner
+      var chance
+
+      while (i != users.length) {
+        if ((tickets[i] / alltickets) >= random / alltickets) {
+          nusers[count] = users[i]
+          ntickets[count] = tickets[i]
+          winid = i
+          count++
+        }
+        i++
+      }
+      if (winid == 0) {
+        random = Math.floor(Math.random() * users.length)
+        winner = users[random]
+        chance = (tickets[random] / alltickets) * 100
+        console.log(`1 <@${winner}> hat mit ${tickets[random]}/${alltickets} und somit einer Wahrscheinlichkeit von ${chance}% gewonnen`)
+        message.channel.send(`<@${winner}>, Du hast nun 7 Tage Zeit um deine Expertise zum Thema "${theme}" zur Schau zu stellen. Viel Erfolg!`)
+      } else {
+        random = Math.floor(Math.random() * nusers.length)
+        winner = nusers[random]
+        chance = (ntickets[random] / alltickets) * 100
+        console.log(`2 <@${winner}> hat mit ${ntickets[random]}/${alltickets} und somit einer Wahrscheinlichkeit von ${chance}% gewonnen`)
+        message.channel.send(`<@${winner}>, Du hast nun 7 Tage Zeit um deine Expertise zum Thema "${theme}" zur Schau zu stellen. Viel Erfolg!`)
+      }
+      i = 0
+      var uid = 0
+      while (i != wgelist.teilnahme.length) {
+        if (wgelist.teilnahme[i].id == winner) {
+          uid = i
+          wgelist.teilnahme[i].tickets = 0
+        } else {
+          wgelist.teilnahme[i].tickets++
+        }
+        i++
+      }
+
+      var time = new Date()
+      //get current time in ms
+      wgelist.teilnahme[uid].time = time.getTime() + 604800000
+      //add 1 week in ms to current time and store
+      wgelist.teilnahme[uid].theme = theme
+      //set theme in database
+      fs.writeFile('Storage/wge.json', JSON.stringify(wgelist), (err) => {
+        if (err) console.error(err)
+      });
+
+
+
+    } else if (sur === 'remove') {
+      var user = getUserFromMention(args[1])
+      if (!user) {
+        user = message.author
+        //get user from mentions, or set author to user if noone was mentioned
+      }
+
+      var uid = 0
+      var i = 0
+      var check = 0
+
+      while (i != wgelist.teilnahme.length) {
+        if (wgelist.teilnahme[i].id === user.id) {
+          check = 1
+          uid = i
+        }
+        i++
+        //check database for user and store position
+      }
+      if (check == 0) {
+        const input = {
+          id: user.id,
+          yn: 'n',
+          tickets: 1,
+        }
+        //if no user exists, add a profile to the database
+        wgelist.teilnahme.push(input)
+        console.log(input)
+        message.channel.send(`${user} ist jetzt in der Teilnehmerliste und **nimmt nicht** teil`)
+        fs.writeFile('Storage/wge.json', JSON.stringify(wgelist), (err) => {
+          if (err) console.error(err)
+        });
+        //write changes to database
+      } else {
+        if (wgelist.teilnahme[uid].yn === "n") {
+          message.channel.send(`${user} ist bereits in der Teilnehmerliste als **nimmt nicht** teil eingetragen`)
+          //if user is known to database and already participates, return message
+        } else {
+          message.channel.send(`${user} **nimmt nicht** mehr teil`)
+          wgelist.teilnahme[uid].yn = "n"
+          //set user participation to n
+          fs.writeFile('Storage/wge.json', JSON.stringify(wgelist), (err) => {
+            if (err) console.error(err)
+          });
+          //write changes to database
+        }
+      }
+      console.log(`${user} wurde von der WGE Teilnehmerliste entfernt`)
+      //log user
+    } else if (sur === 'add') {
+      var user = getUserFromMention(args[1])
+      if (!user) {
+        user = message.author
+        //get user from mentions, or set author to user if noone was mentioned
+      }
+
+      var uid = 0
+      var i = 0
+      var check = 0
+
+      while (i != wgelist.teilnahme.length) {
+        if (wgelist.teilnahme[i].id === user.id) {
+          check = 1
+          uid = i
+        }
+        i++
+        //check database for user and store position
+      }
+      if (check == 0) {
+        const input = {
+          id: user.id,
+          yn: 'y',
+          tickets: 1,
+        }
+        //if no user exists, add a profile to the database
+        wgelist.teilnahme.push(input)
+        message.channel.send(`${user} ist jetzt in der Teilnehmerliste und **nimmt** teil`)
+        fs.writeFile('Storage/wge.json', JSON.stringify(wgelist), (err) => {
+          if (err) console.error(err)
+        });
+        //write change to databse
+      } else {
+        if (wgelist.teilnahme[uid].yn === "y") {
+          message.channel.send(`${user} ist bereits in der Teilnehmerliste als **nimmt** teil eingetragen`)
+          //if user is already in the database and participates, return message
+        } else {
+          message.channel.send(`${user} **nimmt** jetzt teil`)
+          wgelist.teilnahme[uid].yn = "y"
+          //if user is in database, change participation
+          fs.writeFile('Storage/wge.json', JSON.stringify(wgelist), (err) => {
+            if (err) console.error(err)
+          });
+          //write chagne to database
+        }
+      }
+      console.log(`${user} wurde zur WGE Teilnehmerliste hinzugefügt`)
+      //log user
+    } else if (sur === 'time') {
+      var uid
+      var i = 0
+
+      while (i != wgelist.teilnahme.length) {
+        if (wgelist.teilnahme[i].time) {
+          uid = i
+        }
+        i++
+      }
+      if (!uid) {
+        return message.channel.send('Gerade ist kein aktiver WGE')
+      }
+      if (wgelist.teilnahme[uid].time) {
+        desttime = wgelist.teilnahme[uid].time
+        const currentdate = new Date()
+        function msToTime(duration) {
+          var milliseconds = parseInt((duration % 1000) / 100),
+            seconds = Math.floor((duration / 1000) % 60),
+            minutes = Math.floor((duration / (1000 * 60)) % 60),
+            hours = Math.floor((duration / (1000 * 60 * 60)) % 24),
+            days = Math.floor((duration / (1000 * 60 * 60 * 24)) % 7);
+
+          days = (days < 10) ? "0" + days : days;
+          hours = (hours < 10) ? "0" + hours : hours;
+          minutes = (minutes < 10) ? "0" + minutes : minutes;
+          seconds = (seconds < 10) ? "0" + seconds : seconds;
+
+
+          return days + " Tage " + hours + " Stunden " + minutes + " Minuten " + seconds + " Sekunden";
+        }
+        var msgtime = `Noch ${msToTime(wgelist.teilnahme[uid].time - currentdate.getTime())} verbleibend für das Thema: ${wgelist.teilnahme[uid].theme} von <@${wgelist.teilnahme[uid].id}>`
+        const embed = new Discord.MessageEmbed()
+          .setTitle("-Aktiver WGE-")
+          .addFields(
+            { name: 'Thema:', value: `${wgelist.teilnahme[uid].theme}` },
+            { name: 'Zeit:', value: `${msToTime(wgelist.teilnahme[uid].time - currentdate.getTime())} verbleibend` },
+            { name: 'Experte:', value: `<@${wgelist.teilnahme[uid].id}>` }
+          )
+          .setColor(0x51267)
+          .setTimestamp()
+          .setFooter("please notify my creator for further help")
+
+        message.channel.send(embed);
+      } else {
+        return message.channel.send('Gerade ist kein WGE Timer gesetzt')
+      }
+
+    } else if (sur === 'info') {
+      const embed = new Discord.MessageEmbed()
+        .setTitle("-World's Greatest Expert-")
+        .setDescription("Someone thinks you're the **World's Greatest Expert** (Patent pending) and you have to proof your expertise in the given topic \r\n \r\nCheck out the $wge commands for further help")
+        .setColor(0x51267)
+        .setTimestamp()
+        .setFooter("please notify my creator for further help")
+
+      message.channel.send(embed);
+    } else if (sur === 'help') {
+      var argument = args[1]
+      const namearr = ['add', 'help', 'info', 'list', 'random', 'remove', 'set', 'tickets', 'time']
+      const descarr = ['adds a user to the wge participation list', 'shows this help window', 'shows you what this game is about', 'lists current participants of WGE', 'randomly assigns a user to a wge theme', 'removes a user from the wge participation list', 'assigns a user to a wge theme', 'shows your current tickets', 'shows remaining time of the current wge']
+      const usearr = ['$wge add [user or self] [theme]', '$wge help [command]', '$info', '$wge list', '$wge random', '$wge remove [user or self]', '$wge set [user] [theme]', '$wge tickets', '$wge time']
+      var i
+      if (!argument) {
+      } else if (argument == namearr[0]) {
+        i = 0;
+      } else if (argument == namearr[1]) {
+        i = 1;
+      } else if (argument == namearr[2]) {
+        i = 2;
+      } else if (argument == namearr[3]) {
+        i = 3;
+      } else if (argument == namearr[4]) {
+        i = 4;
+      } else if (argument == namearr[5]) {
+        i = 5;
+      } else if (argument == namearr[6]) {
+        i = 6;
+      } else if (argument == namearr[7]) {
+        i = 7;
+      }
+      if (!argument) {
+        const embed = new Discord.MessageEmbed()
+          .setTitle("-Command List-")
+          .addFields({ name: 'Commands:', value: namearr, inline: true })
+          .setDescription(`${namearr.length} Commands available!`)
+          .setColor(0x51267)
+          .setTimestamp()
+          .setFooter("please notify my creator for further help")
+
+        message.channel.send(embed);
+      } else {
+        const embed = new Discord.MessageEmbed()
+          .setTitle(namearr[i])
+          .setDescription(descarr[i])
+          .addFields({ name: 'Usage:', value: usearr[i], inline: true })
+          .setColor(0x51267)
+          .setTimestamp()
+          .setFooter("please notify my creator for further help")
+
+        message.channel.send(embed);
+      }
+    } else if (sur === 'tickets') {
+      var user = message.author
+      var i = 0
+      var uid
+      var alltickets = 0
+      while (i != wgelist.teilnahme.length) {
+        if (wgelist.teilnahme[i].id == user.id) {
+          uid = i
+        }
+        alltickets += wgelist.teilnahme[i].tickets
+        i++
+      }
+      var chance = (wgelist.teilnahme[uid].tickets / alltickets) * 100
+      return message.channel.send(`Du hast ${wgelist.teilnahme[uid].tickets} Tickets und somit eine Chance von ${chance}%`)
+
+    } else if (sur === 'list') {
+      var users = []
+      var i = 0
+      var skips = 0
+      while (i != wgelist.teilnahme.length) {
+        if (wgelist.teilnahme[i].yn === 'y') {
+          users[skips] = `<@${wgelist.teilnahme[i].id}>`
+          skips++
+        }
+        i++
+      }
+
+      const embed = new Discord.MessageEmbed()
+        .setTitle("-Teilnehmerliste-")
+        .setDescription("Gerade nehmen folgende Personen an WGE teil. . .")
+        .addFields({ name: 'Teilnehmer:', value: users },)
+        .setColor(0x51267)
+        .setTimestamp()
+        .setFooter("please notify my creator for further help")
+      message.channel.send(embed);
+    } else {
+      return message.channel.send(`missing argument(s), please refer to [$help ${command}]`)
+    }
+  }
+  //COMMAND: UPDATEPROFILES
+  if (command === 'pfupdate') {
+    //updates all userData.Honor entries to have a clean database
+    if (message.author.id == '140508899064283136') {
+      var a = 0;
+      var profarr = []
+      var counter = 0
+      var backup = JSON.parse(fs.readFileSync('Storage/userData.json'))
+      fs.open('Storage/userData.json', 'w', (err) => {
+        if (err) console.error(err)
+      })
+      //create backup file, if not existent
+      fs.writeFileSync('Storage/userData.json.bak', JSON.stringify(backup), (err) => {
+        if (err) console.error(err)
+      });
+      //copy existing data to backup
+      console.log('Backup created!')
+      //log successful craetion of backup
+
+      while (a != userData.Honor.length) {
+        //create new entries
+        if (!userData.Honor[a].honors) {
+          userData.Honor[a].honors = 0
+          counter++
+        }
+        if (!userData.Honor[a].nuts) {
+          userData.Honor[a].nuts = 0
+          counter++
+        }
+        if (!userData.Honor[a].reason) {
+          userData.Honor[a].reason = ""
+          counter++
+        }
+        if (!userData.Honor[a].time) {
+          userData.Honor[a].time = 0
+          counter++
+        }
+        a++;
+        //add new entries for existing users, if not there already
+      }
+      fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+        if (err) console.error(err)
+      });
+      //write changes to database
+
+      var profarr = []
+      profarr[0] = 'New Profile Structure:'
+      profarr[1] = '{"id":"<id>","honors":<honors>,"nuts":<nuts>,"reason":<reason>,"time":<time>}'
+      profarr[2] = ''
+      profarr[3] = `**${counter}** Entries in **${a}** Total Profiles Have Been Updated`
+
+      const profembed = new Discord.MessageEmbed()
+        .setColor(0x51267)
+        .addFields({ name: 'Updating All Profiles . . .', value: profarr, inline: true });
+      message.channel.send(profembed);
+      //return new profile structure
+    } else {
+      message.channel.send('You do not have the required permissions to use this command')
+      //return permission denied message if user is not an admin
+    }
+  }
+  //COMMAND: NUTSLB
+  if (command === 'nutslb') {
+    var i = 0;
+    var sorter = [];
+    var element
+
+    while (i != userData.Honor.length) {
+      element = userData.Honor[i].nuts
+      sorter.push(element);
+      sorter.sort(function (a, b) {
+        return b - a;
+      });
+      i++;
+      //adds nuts to sorter, then sorts descending from highest value
+    }
+    var i = 0;
+    var a = 0;
+    var z = [];
+
+    while (i < 5) {
+      //Top 5 Werte
+      while (a != userData.Honor.length) {
+        if (!userData.Honor[a].nuts) {
+          userData.Honor[a].nuts = 0
+          fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+            if (err) console.error(err)
+          });
+          //sets nonexistent values to 0 for leaderboard purposes
+        }
+        //DB durchsuchen
+        if (userData.Honor[a].nuts === sorter[i]) {
+          //ID merken
+          if (!z.includes(`<@${userData.Honor[a].id}> : ${userData.Honor[a].nuts} Nuts`, 0)) {
+            //Duplicates suchen
+            z[i] = `<@${userData.Honor[a].id}> : ${userData.Honor[a].nuts} Nuts`;
+          }
+        }
+        a++;
+      }
+      //search the database for all nuts
+      a = 0;
+      i++;
+    }
+    const embed = new Discord.MessageEmbed()
+      .setAuthor(`Nuts Leaderboard!`)
+      .setColor(0x51267)
+      .addFields({ name: 'Top 5:', value: z, inline: true });
+    message.channel.send(embed);
+    //creates and sends embed of the TOP 5 highest nut values
+  }
+  //COMMAND: activetimer
+  if (command === 'activetimer') {
+    var newUser = message.author
+    var currentdate = new Date()
+    //get author and current date
+
+    var uid = 0
+    var i = 0
+
+    do {
+      if (userData.Honor[i].id === newUser.id) {
+        check = 1
+        uid = i
+      }
+      i++
+      //search the databse for user and check if he exists
+    } while (i != userData.Honor.length)
+
+    var saved = userData.Honor[uid].time
+    //Temp Speicher
+
+    if (!saved) {
+      return message.channel.send('Keine aktiven Timer gesetzt!')
+      //checks if saved is empty
+    } else {
+      var saved2 = saved.split(",")
+      //makes saved into an array
+      var converted = []
+      //another Temp Speicher for skipped values
+      var x = 0
+      var skips = 0
+      while (x != saved2.length) {
+        if (saved2[x] < currentdate.getTime()) {
+          x++
+          skips++
+          //remembers x position and skip counter
+        } else {
+          var miliseconds = JSON.parse(saved2[x])
+          var date = new Date(miliseconds)
+          converted[x - skips] = `${(date.getHours() < 10 ? '0' : '') + date.getHours()}:${(date.getMinutes() < 10 ? '0' : '') + date.getMinutes()}:${(date.getSeconds() < 10 ? '0' : '') + date.getSeconds()}`
+          //puts values into the correct position with skips in mind
+          skips = 0
+          //resets skips
+          x++
+        }
+      }
+
+      const embed = new Discord.MessageEmbed()
+        .setAuthor(`Active Timers!`)
+        .setColor(0x51267)
+        .addFields({ name: 'timer ends at:', value: converted, inline: true });
+      message.channel.send(embed);
+      //sends embedded message with all covnerted values
+    }
+  }
+  //COMMAND: TIMER
+  if (command === 'timer') {
+    var newUser = message.author
+    var time = args[0]
+    if (!time) {
+      return message.channel.send('Wann soll ich dich denn erinnern?')
+    }
+    var currentdate = new Date();
+    var newdate = new Date();
+    var param = args.join(' ').slice(args[0].length)
+    param = param.trimStart()
+    var rdmarr = [`Dein Timer von ${time} ist um. Erinnere mich nochmal, woran ich dich erinnern sollte...`, `Dein Timer von ${time} ist um! Oh guck mal, da war eine Nuss im Timer :0`, `Dein Timer von ${time} ist um!`]
+
+    if (ms(time) === undefined) {
+      return message.channel.send('Please use time properly')
+    }
+    var rdm = Math.floor(Math.random() * rdmarr.length)
+
+    if (!param) {
+      param = rdmarr[rdm]
+    }
+    newdate.setTime(currentdate.getTime() + ms(time))
+    var desttime = `**${(newdate.getHours() < 10 ? '0' : '') + newdate.getHours()}:${(newdate.getMinutes() < 10 ? '0' : '') + newdate.getMinutes()}:${(newdate.getSeconds() < 10 ? '0' : '') + newdate.getSeconds()}**`
+
+    var check = 0
+    var uid = 0
+    var i = 0
+
+    do {
+      if (userData.Honor[i].id === newUser.id) {
+        check = 1
+        uid = i
+      }
+      i++
+    } while (i != userData.Honor.length)
+    if (!userData.Honor[uid].id) {
+      const input = {
+        id: newUser.id,
+        honors: 0,
+        reason: "",
+        nuts: 0,
+        time: newdate.getTime()
+      }
+      userData.Honor.push(input)
+    } else {
+      userData.Honor[uid].time += ',' + newdate.getTime()
+    }
+    fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+      if (err) console.error(err)
+    });
+
+    if (rdm == 1) {
+
+      userData.Honor[uid].nuts++
+      fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+        if (err) console.error(err)
+      });
+    }
+    var deltime = userData.Honor[uid].time
+    var d = deltime.split(",")
+
+    message.channel.send(`Timer set! Ich erinnere dich in ${time} um ${desttime}`)
+    setTimeout(() => {
+      message.reply(param)
+      userData.Honor[uid].time = d.join(",")
+      fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+        if (err) console.error(err)
+      });
+    }, ms(time));
+  }
+  //COMMAND: CHECKNUTS
+  if (command === 'checknuts') {
+    var newUser = getUserFromMention(args[0])
+    if (!newUser) {
+      newUser = message.author
+    }
+    //if no user was mentionied, set author as target user
+
+    var check = 0
+    var uid = 0
+    var i = 0
+
+    do {
+      if (userData.Honor[i].id === newUser.id) {
+        check = 1;
+        uid = i;
+      }
+      i++;
+      //search database for user
+    } while (i != userData.Honor.length)
+
+    if (check == 1) {
+      //data does exist
+      if (!userData.Honor[uid].nuts) {
+        //data exists, but not updated yet
+        userData.Honor[uid].nuts = 0;
+        fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+          if (err) console.error(err)
+        });
+        //write changes to database
+      }
+
+      if (userData.Honor[uid].nuts > 0) {
+        //if user has more than 0 nuts, return value in message
+        message.channel.send(`${newUser} hat bereits **${userData.Honor[uid].nuts}** Nüsse gesammelt! <:surprised_yeesh:808577706073260053>`);
+      } else {
+        //if user has no nuts, return message
+        message.channel.send(`${newUser} hat noch keine Nüsse gesammelt! >:(`);
+      }
+
+    } else {
+      //data does not exist
+      message.channel.send(`${newUser} hat noch keine Nüsse gesammelt! >:(`);
+
+      const input = {
+        id: newUser.id,
+        honors: 0,
+        reason: "",
+        nuts: 0,
+        time: ""
+      }
+      //create new profile
+      userData.Honor.push(input);
+      fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+        if (err) console.error(err)
+      });
+      //write changes to database
+    }
+  }
+  //COMMAND: NUTS
+  if (command === 'nuts') {
+    var newUser = message.author
+    if (nutCooldown.has(newUser.id)) {
+      message.channel.send('Du hast zu schnell genutted! >:(')
+      //check if the user has already used this command in the past hour
+    } else {
+      var check = 0
+      var uid = 0
+      var i = 0
+
+      do {
+        if (userData.Honor[i].id === newUser.id) {
+          check = 1;
+          uid = i;
+        }
+        i++;
+        //search database for user
+      } while (i != userData.Honor.length)
+
+      var value = Math.floor(Math.random() * 10)
+      //creates random value for nuts
+
+      if (value == 1) {
+        //Singular
+        message.reply('Du hast eine Nuss bekommen! <:chestnut:829906666551902238>')
+      } else if (value > 0) {
+        //Plural
+        message.reply(`Du hast ${value} Nüsse bekommen! <:chestnut:829906666551902238>`)
+      } else {
+        //Nichts
+        message.reply('Du hast keine Nuss bekommen! <:shooketh_yeesh:808577698271199272>')
+      }
+
+      if (check == 1) {
+        //data does exist
+        if (!userData.Honor[uid].nuts) {
+          message.channel.send('Deus Nut! Du bekommst eine Bonus Nuss zum ersten Mal. <:DeusNut:829395908067328031>')
+          value++;
+          userData.Honor[uid].nuts = value
+          //Bonus nut for the first time and writes it to database
+        } else {
+          userData.Honor[uid].nuts += value
+          //adds value to existing data
+        }
+        fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+          if (err) console.error(err)
+        });
+        //writes changes to database
+
+      } else {
+        //data does not exist
+        message.channel.send('Deus Nut! Du bekommst eine Bonus Nuss zum ersten Mal. <:DeusNut:829395908067328031>') //<:Honor2:748242575701311530>
+        value++;
+        //random value + 1 for the first time using the command
+
+        const input = {
+          id: newUser.id,
+          honors: 0,
+          reason: "",
+          nuts: value,
+          time: ""
+        }
+        //creates new profile with added value
+        userData.Honor.push(input);
+        fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+          if (err) console.error(err)
+        });
+        //writes changes to database
+      }
+
+      nutCooldown.add(newUser.id);
+      //adds user to cooldown set
+      setTimeout(() => {
+        nutCooldown.delete(newUser.id);
+        //deletes cooldown after 1h
+      }, 3600000)
+      //sets timeout to 1h
+    }
+  }
+  //COMMAND: LEADERBOARD
+  if (command === 'lb') {
+    var i = 0;
+    var sorter = [];
+    var element
+
+    while (i != userData.Honor.length) {
+      element = userData.Honor[i].honors
+      sorter.push(element);
+      sorter.sort(function (a, b) {
+        return b - a;
+      });
+      //puts all honors into the sorter and sorts them in descending order
+      i++;
+      //search database for honors
+    }
+
+    var i = 0;
+    var a = 0;
+    var z = [];
+
+    while (i < 5) {
+      //Top 5 Werte
+      while (a != userData.Honor.length) {
+        //DB durchsuchen
+        if (userData.Honor[a].honors === sorter[i]) {
+          //ID merken, erstmal in console
+          if (!z.includes(`<@${userData.Honor[a].id}> : ${userData.Honor[a].honors} Honors`, 0)) {
+            //Duplicates suchen
+            z[i] = `<@${userData.Honor[a].id}> : ${userData.Honor[a].honors} Honors`;
+          }
+        }
+        a++;
+      }
+      a = 0;
+      i++;
+    }
+    const embed = new Discord.MessageEmbed()
+      .setAuthor(`Honor Leaderboard!`)
+      .setColor(0x51267)
+      .addFields({ name: 'Top 5:', value: z, inline: true });
+    message.channel.send(embed);
+    //creates and sends embedded value of sorted honors
+  }
+  //COMMAND: SETBDAY
+  if (command == 'setbday') {
+    if (message.author.id === '140508899064283136') {
+      var user = getUserFromMention(args[0]);
+      var date = args[1];
+      //get user and date
+      if (!user || !date) {
+        return message.channel.send(`missing argument(s), please refer to [$help ${command}]`)
+        //returns message, if no user or date was given
+      } else {
+        var key, count = 0;
+        for (key in birthdays.geburtstage) {
+          count++;
+        };
+        //count every birthday entry
+
+        var i = 0;
+        var checker = 0;
+        do {
+          if (user.id == birthdays.geburtstage[i].id) {
+            checker = 1;
+          }
+          i++;
+          //search database for user
+        } while (i != count);
+        if (checker == 0) {
+          const input = {
+            id: user.id,
+            bday: date,
+          }
+          //if no user exists in database, create new profile
+          birthdays.geburtstage.push(input);
+          message.channel.send('Birthday Was Added To Database!')
+          fs.writeFile('Storage/birthdays.json', JSON.stringify(birthdays), (err) => {
+            if (err) console.error(err)
+          });
+          //write changes to database
+        } else {
+          return message.channel.send(`${user} is already in my database!`);
+          //return message if users birthday is in database
+        }
+      }
+    } else {
+      return message.reply('You are not authorized to use this command! >:(');
+      //return message if not authorized
+    }
+  }
+  //COMMAND: LUV
+  if (command == 'luv') {
+    const user = getUserFromMention(args[0]);
+    //get user from mentions
+    var luvgifs = [
+      "https://giphy.com/embed/M90mJvfWfd5mbUuULX",
+      "https://giphy.com/embed/hVle3v01CScLyGRe0i",
+      "https://giphy.com/embed/TdL0bbk08WP2S0RMnX",
+      "https://giphy.com/embed/eiRpSPB8OSGVcbkOIJ",
+      "https://giphy.com/embed/ifB1v1W3Db0GIW7uTA",
+      "https://giphy.com/embed/yc2pHdAoxVOrJ2m5Ha",
+      "https://giphy.com/embed/Tia2InBEWaQgckP3UG",
+      "https://giphy.com/embed/l41JWw65TcBGjPpRK",
+      "https://giphy.com/embed/M8o1MOwcwsWOmueqN4",
+      "https://giphy.com/embed/L4UOYLu2quhaRqrTDI",
+      "https://giphy.com/embed/4N1wOi78ZGzSB6H7vK",
+      "https://giphy.com/embed/RkbLjHIVtiJYyHnHvB",
+      "https://giphy.com/embed/l4pTdcifPZLpDjL1e",
+      "https://giphy.com/embed/WOrZJR85BBDyhahWsX",
+    ];
+    //static gif links in array
+    const gif = luvgifs[Math.floor(Math.random() * luvgifs.length)];
+    //creates random number for gif index
+    if (!user) {
+      return message.reply('Ich sehe, dass du Liebe vergeben willst, aber wen willst du den lieb haben?');
+      //returns message if no one was mentioned
+    } else {
+      message.channel.send(`<@${message.author.id}> gibt luv an <@${message.mentions.users.first().id}>`);
+      return message.channel.send(gif);
+      //returns message and sends gif image
+    }
+  }
+  //COMMAND: 8BALL
+  if (command == '8ball') {
+    if (args == '') {
+      return message.channel.send('Stell mir doch bitte eine Frage, ich kann immerhin keine Gedanken lesen...unless? ;)');
+      //checks for any arguments
+    } else {
+      const random = Math.floor(Math.random() * 20);
+      //iterates a random number from 0 to 19
+      if (random == 0) {
+        //Positive Antworten
+        return message.channel.send('Absolut, so wie die Authorität unserer Göttin!');
+      } else if (random == 1) {
+        return message.channel.send('Unterschätze es nicht, genauso wie Roberts sexual frustration');
+      } else if (random == 2) {
+        return message.channel.send('Ich zedaz so');
+      } else if (random == 3) {
+        return message.channel.send('Ohne Zweifel');
+      } else if (random == 4) {
+        return message.channel.send('Definitiv, Alter');
+      } else if (random == 5) {
+        return message.channel.send('Microsoft Outlook gut');
+      } else if (random == 6) {
+        return message.channel.send('Das Sternzeichen von Yeesh leuchtet heute stark dafür');
+      } else if (random == 7) {
+        return message.channel.send('Mit "Support-Desk am Freitagabend" - Wahrscheinlichkeit');
+      } else if (random == 8) {
+        return message.channel.send('Ist die Nase von Julius wunderschön und lang?');
+      } else if (random == 9) {
+        return message.channel.send('So wahr wie Laviis Zeichnkünste');
+        //Neutrale Antworten
+      } else if (random == 10) {
+        return message.channel.send('nein...ja... vielleicht?');
+      } else if (random == 11) {
+        return message.channel.send('Frag mich nachher nochmal');
+      } else if (random == 12) {
+        return message.channel.send('Die Kalkulationen sind leicht off, ich aber nicht ;)');
+      } else if (random == 13) {
+        return message.channel.send('Ich sag es dir ein ander Mal');
+      } else if (random == 14) {
+        return message.channel.send('Ohne schwere Zeiten, würden wir die guten Zeiten nie schätzen');
+        //Negative Antworten
+      } else if (random == 15) {
+        return message.channel.send('Genauso schlecht wie eine Ketzerei gegen den Olymp');
+      } else if (random == 16) {
+        return message.channel.send('Hat der Fuchs uns jemals verraten?...**hust**');
+      } else if (random == 17) {
+        return message.channel.send('Mein Outlook ist abgeschmiert, mist');
+      } else if (random == 18) {
+        return message.channel.send('Ich bezweifle es. A propos, zweifel nicht an den Götter und ihren Priester!');
+      } else if (random == 19) {
+        return message.channel.send('Meine Quellen sagen.... WARNUNG! Artikel 17: Die betroffene Person hat das Recht, von dem Verantwortlichen zu verlangen, dass sie betreffende personenbezogene Daten unverzüglich gelöscht werden, und der Verantwortliche ist verpflichtet, personenbezogene Daten unverzüglich zu löschen, sofern einer der folgenden Gründe zutrifft **ERROR ERROR ERROR**?');
+      } else {
+        return;
+      }
+    }
+  }
+  //COMMAND: DOGGO
+  if (command == 'doggo') {
+    if (message.author.id == '353902552888377346') {
+      const attachment = new Discord.MessageAttachment('assets/doggo.jpg', 'doggo.jpg');
+      //creates attachment from local doggo image
+
+      message.channel.send({
+        embed: {
+          files: [
+            attachment
+          ],
+          image: {
+            url: 'attachment://doggo.jpg'
+          }
+        }
+      });
+      //creates embed with doggo image
+
+      var text = [
+        'Ich habe dich vermisst, woof!',
+        'Lass uns spielen!',
+        'Denk dran, ich werde immer hier sein.',
+        'Du hast gerufen, Herrchen?',
+        'Depression, WO?! Ich belle sie weg.',
+      ]
+      //creates array with potential messages
+      let myText = text[Math.floor(Math.random() * text.length)]
+      //chooses random index
+      message.channel.send(myText);
+      //sends random message
+    } else {
+      return message.reply('Du bist nicht mein Herrchen! >:(')
+      //if no permissions, then return message
+    }
+  }
+  //COMMAND: PET
+  if (command == 'pet') {
+    if (message.author.id == '353902552888377346') {
+      const attachment = new Discord.MessageAttachment('assets/doggo.jpg', 'doggo.jpg');
+      //creates attachement from local doggo image
+      message.channel.send({
+        embed: {
+          files: [
+            attachment
+          ],
+          image: {
+            url: 'attachment://doggo.jpg'
+          }
+        }
+      });
+      //creates embed from doggo image
+      var petText = [
+        '*loving growl*',
+        'Danke, das habe ich gebraucht.',
+        'Ein bisschen tiefer.',
+        'Ja, genau dort!'
+      ]
+      //creates array with potential messages
+      let myPetText = petText[Math.floor(Math.random() * petText.length)]
+      //chooses random index
+      message.channel.send(myPetText);
+      //sends random message
+    } else {
+      return message.reply('Du bist nicht mein Herrchen! >:(')
+      //if no permissions, then return message
+    }
+  }
+  //COMMAND: STATUS
+  if (command == 'status') {
+    if (message.author.id == '140508899064283136') {
+      return message.channel.send('I am alive, father :D');
+    } else {
+      return message.channel.send("I am online");
+    }
+  }
+  //COMMAND: AVATAR
+  if (command == 'avatar') {
+    if (args[0]) {
+      const user = getUserFromMention(args[0]);
+      if (!user) {
+        return message.reply('Please use a proper mention if you want to see someone else\'s avatar.');
+        //returns a text, when you don't mention someone
+      }
+      return message.channel.send(`${user.username}'s avatar: ${user.displayAvatarURL({ dynamic: true })}`);
+      //returns authors avatar
+    }
+    return message.channel.send(`${message.author.username}, your avatar: ${message.author.displayAvatarURL({ dynamic: true })}`);
+    //returns mentioned users avatar
+  }
+  //COMMAND: PING
+  if (command === 'ping') {
+    client.commands.get('ping').execute(message, args);
+    //ping - pong, easy as that
+  }
+  //COMMAND: AUTHOR
+  if (command === 'author') {
+    client.commands.get('author').execute(message, args);
+    //gives credit to author
+  }
+  //COMMAND: HELP
+  if (command === 'help') {
+    client.commands.get('help').execute(message, args);
+    //help menu with a list of all commands
+  }
+  //COMMAND: TEST [REDACTED]
+  if (command === 'test') {
+    client.commands.get('test').execute(message, args);
+    //test command, please ignore
+  }
+  //COMMAND: HONORHISTORY
+  if (command === 'honorhistory') {
+    if (message.member.hasPermission("VIEW_AUDIT_LOG")) {
+      var newUser = getUserFromMention(args[0])
+      if (!newUser) {
+        newUser = message.author
+      }
+      //gets user from mention or sets user to author
+
+      var check = 0;
+      var uid = 0
+      var i = 0
+
+      do {
+        if (userData.Honor[i].id === newUser.id) {
+          uid = i;
+          check = 1;
+        }
+        i++;
+        //searches database for user
+      } while (i != userData.Honor.length)
+
+      if (check == 1) {
+        if (!userData.Honor[uid].reason) {
+          return message.channel.send('This User has no Honor History!')
+          //if user has no reason value, return message
+        }
+        var str = userData.Honor[uid].reason
+        var strarr = str.split(',')
+        //get reasons and create array
+        const embed = new Discord.MessageEmbed()
+          .setAuthor(`Honor History!`)
+          .setColor(0x51267)
+          .addFields({ name: 'reasons:', value: strarr, inline: true });
+        message.channel.send(embed)
+        //create and send embed with honor reasons
+      } else {
+        userData.Honor[uid].reason = ""
+        fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+          if (err) console.error(err)
+        });
+        //if user is in database, but has no reason entry, create one
+      }
+    } else {
+      message.channel.send('You do not have the required permissions to use this command')
+      //if no permission, return message
+    }
+  }
+  //COMMAND: DISHONOR
+  if (command === 'dishonor') {
+    if (message.member.hasPermission("VIEW_AUDIT_LOG")) {
+      const newUser = getUserFromMention(args[0])
+      //gets user from mention 
+      if (!newUser) {
+        return message.channel.send(`missing argument(s), please refer to [$help ${command}]`)
+        //returns message if no user was given
+      }
+      var reason = args.join(' ').slice(args[0].length)
+      reason = reason.trimStart()
+      //gets all arguments after user and combines them
+      if (!reason) {
+        return message.channel.send(`missing argument(s), please refer to [$help ${command}]`)
+      }
+      var check = 0
+      var uid = 0
+      var i = 0
+
+      do {
+        if (userData.Honor[i].id === newUser.id) {
+          check = 1;
+          uid = i;
+        }
+        i++;
+        //search database for user
+      } while (i != userData.Honor.length)
+      reason = "[-] " + reason
+      if (check == 1) {
+        //data does exist
+        if (userData.Honor[uid].honors > -20) {
+          userData.Honor[uid].honors--
+          userData.Honor[uid].reason += ', ' + reason
+          //dishonor and add reason
+          fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+            if (err) console.error(err)
+          });
+          //write changes to database
+        } else {
+          return message.channel.send(`<@${message.author.id}> tried to dishonor <@${message.mentions.users.first().id}>, but they are at Max Dishonor Level! <:Honor2:748242575701311530><:Honor2:748242575701311530><:Honor2:748242575701311530>`)
+          //returns message if user is already at max dishonor value
+        }
+      } else {
+        //data does not exist
+        const input = {
+          id: newUser.id,
+          honors: -1,
+          reason: reason,
+          nuts: 0,
+          time: ""
+        }
+        //if user does not exist in databse, create a new profile
+        userData.Honor.push(input);
+        fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+          if (err) console.error(err)
+        });
+        //write changes to database
+      }
+      return message.channel.send(`<@${message.author.id}> has dishonored <@${message.mentions.users.first().id}> <:Honor2:748242575701311530>`);
+      //returns message after successfully adding it to database
+    } else {
+      message.channel.send('You do not have the required permissions to use this command')
+      //returns message, if no permissions
+    }
+  }
+  //COMMAND: HONOR
+  if (command === 'honor') {
+    if (message.member.hasPermission("VIEW_AUDIT_LOG")) {
+      const newUser = getUserFromMention(args[0])
+      //gets user from mention
+      if (!newUser) {
+        return message.channel.send(`missing argument(s), please refer to [$help ${command}]`)
+      }
+      //returns message, if no user mentioned
+      var reason = args.join(' ').slice(args[0].length)
+      reason = reason.trimStart()
+      //gets all arguments after user and combines them
+      if (!reason) {
+        return message.channel.send(`missing argument(s), please refer to [$help ${command}]`)
+      }
+
+      var check = 0
+      var uid = 0
+      var i = 0
+
+      do {
+        if (userData.Honor[i].id === message.mentions.users.first().id) {
+          check = 1;
+          uid = i;
+        }
+        i++;
+        //searches database for user
+      } while (i != userData.Honor.length)
+      reason = "[+] " + reason
+      if (check == 1) {
+        //data does exist
+        if (userData.Honor[uid].honors < 20) {
+          userData.Honor[uid].honors++
+          //if user below max value, add 1 to value
+          if (userData.Honor[uid].reason === '') {
+            userData.Honor[uid].reason = reason
+            //if user has no previous reason, equal reason to reason
+          } else {
+            userData.Honor[uid].reason += ', ' + reason
+            //if user has previous reasons, add it the reason with ','
+          }
+          fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+            if (err) console.error(err)
+          });
+          //write changes to database
+        } else {
+          return message.channel.send(`<@${message.author.id}> tried to honor <@${message.mentions.users.first().id}>, but they are at Max Honor Level! <:Honor1:748242575873278115> <:Honor1:748242575873278115> <:Honor1:748242575873278115>`)
+        }
+      } else {
+        //data does not exist
+        const input = {
+          id: newUser.id,
+          honors: 1,
+          reason: reason,
+          nuts: 0,
+          time: ""
+        }
+        //if user is not in database, create new profile
+        userData.Honor.push(input);
+        fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+          if (err) console.error(err)
+        });
+        //write changes to database
+      }
+      return message.channel.send(`<@${message.author.id}> has honored <@${message.mentions.users.first().id}> <:Honor1:748242575873278115>`);
+      //returns message upon successfully honoring someone
+    } else {
+      message.channel.send('You do not have the required permissions to use this command')
+      //return message, if no permissions
+    }
+  }
+  //COMMAND: CHECKHONOR
+  if (command === 'checkhonor') {
+    var newUser = getUserFromMention(args[0])
+    if (!newUser) {
+      newUser = message.author
+    }
+    //get user from mention or set author to user
+    var check = 0
+    var uid = 0
+    var i = 0
+
+    do {
+      if (userData.Honor[i].id === newUser.id) {
+        check = 1;
+        uid = i;
+      }
+      i++;
+      //search databse for user
+    } while (i != userData.Honor.length)
+
+    if (check == 1) {
+      //data does exist
+      message.channel.send('You received **' + userData.Honor[uid].honors + '** Honors in total!');
+      //send message of total honor value
+      if (userData.Honor[uid].honors < 0) {
+        message.channel.send('What happened to Loyalty?! <:Honor2:748242575701311530>')
+      } else if (userData.Honor[uid].honors > 0) {
+        message.channel.send('real good, boah, REAL GOOD! <:Honor1:748242575873278115>')
+      } else if (userData.Honor[uid].honors === 0) {
+        message.channel.send('Choose a goddamn side!')
+      } else if (userData.Honor[uid].honors === 20) {
+        message.channel.send('This User is at max Honor Level! <:Honor1:748242575873278115> <:Honor1:748242575873278115> <:Honor1:748242575873278115>')
+      } else if (userData.Honor[uid].honors === -20) {
+        message.channel.send('This User is at max Dishonor Level! <:Honor2:748242575701311530> <:Honor2:748242575701311530> <:Honor2:748242575701311530>')
+      }
+      //send bonus message depending on honor value
+    } else {
+      //data does not exist
+      message.channel.send('You received **0** Honors in total!');
+      message.channel.send('Choose a goddamn side!');
+      //send message for new users in database
+
+      const input = {
+        id: newUser.id,
+        honors: 0,
+        reason: "",
+        nuts: 0,
+        time: ""
+      }
+      //create new profile
+      userData.Honor.push(input);
+      fs.writeFile('Storage/userData.json', JSON.stringify(userData), (err) => {
+        if (err) console.error(err)
+      });
+      //write changes to databse
+    }
+  }
+});
+//END OF EVENT (MESSAGE SENT)
+
+client.login(config.token);
+
+//CODE WRITTEN BY DESQBLOCKI
+//ADD ME ON DISCORD "DeSqBlocki#2568"
