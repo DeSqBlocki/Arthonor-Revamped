@@ -392,6 +392,7 @@ client.on('message', async message => {
       if (!feedback){
         return message.channel.send('No messages in inbox!')
       }
+      
       const embed = new Discord.MessageEmbed()
         .setTitle(`-Feedback Inbox-`)
         .setColor(0x51267)
