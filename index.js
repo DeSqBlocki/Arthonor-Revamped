@@ -246,6 +246,7 @@ client.on("voiceStateUpdate", async function (oldMember, newMember) {
     } else {
       console.log(userCountInChannel + ' User sind im Tartaros')
     }
+    
     loopCheck = true
     if (userCountInChannel === 1 && loopCheck === true) {
       getPlaylistInfo()
