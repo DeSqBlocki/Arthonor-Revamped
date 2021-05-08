@@ -1,7 +1,7 @@
 const Discord = require('discord.js');
 const config = require('./config.json');
 const client = new Discord.Client({ partials: ['MESSAGE', 'REACTION'] });
-const prefix = '$';
+const prefix = '';
 
 const fs = require('fs');
 const { waitForDebugger } = require('inspector');
@@ -11,6 +11,8 @@ const { isNull } = require('util');
 const userData = JSON.parse(fs.readFileSync('Storage/userData.json', 'utf8'));
 const birthdays = JSON.parse(fs.readFileSync('Storage/birthdays.json', 'utf8'));
 const wgelist = JSON.parse(fs.readFileSync('Storage/wge.json', 'utf8'))
+const quotes = JSON.parse(fs.readFileSync('Storage/quotes.json', 'utf8'))
+
 const nutCooldown = new Set();
 const ms = require('ms')
 const ytdl = require('ytdl-core');
@@ -24,11 +26,23 @@ const durations = [];
 const musictitle = [];
 const thumbnail = []
 const feedbackjson = JSON.parse(fs.readFileSync('Storage/feedback.json', 'utf8'));
-var songIndex = 0
 var userCountInChannel = 0
 var dispatcher
 var loopCheck = false
-var round = 0
+var songIndex
+var playlist
+const getPlaylistInfo = async () => { //function for the first user joining the afk channel
+  var i = 0
+  playlist = await ytpl('PLjSh2s1ASTgsSdjCgFbpo18RAYF_dHf46') //fetches playlist infos from YT
+  for (var property in playlist.items) { // goes through every item in playlist.items
+    queue[i] = playlist.items[property].shortUrl //saves url at index i
+    durations[i] = playlist.items[property].durationSec //saves durations in seconds at index i
+    musictitle[i] = playlist.items[property].title //saves title at index i
+    thumbnail[i] = playlist.items[property].bestThumbnail.url
+    i++
+  }
+}
+getPlaylistInfo()
 // const profilesTemplate = {
 //   id: user.id,
 //   honors: 0,
@@ -195,10 +209,8 @@ client.on("voiceStateUpdate", async function (oldMember, newMember) {
   //event handler for {mute,deafen,vc change, etc}
   const guild = client.guilds.cache.get('353902391021535242') //caches guild by id
   const voiceChannel = guild.channels.cache.get('353903072310722561') //caches voicechannel by id
-  var playlist //iterates playlist for inter-functional use
-  const streamOptions = `{ filter: 'audioonly', highWaterMark: 1<<25 }` //iterates streamOptions for Opus
+  const streamOptions = `{ filter: 'audioonly',quality: 'highestaudio', highWaterMark: 1 << 25 }` //iterates streamOptions for Opus
   var connection //iterates playlist for inter-functional use
-
   const delay = ms => new Promise(res => setTimeout(res, ms)); //function used for await in while loop
   if (userCountInChannel < 0) { //known bug: users inside afk channel were not registered an count towards userCountInChannel-- upon leaving. 
     userCountInChannel = 0 //This fixes the bot to stay!
@@ -207,62 +219,37 @@ client.on("voiceStateUpdate", async function (oldMember, newMember) {
   if (newMember.channelID === '353903072310722561' && oldMember.channelID != newMember.channelID) {
     //checks channelID and where the user came from/went to
     userCountInChannel++ // add count to userCount so that the bot plays music as long as at least 1 person is in the channel
-    playlist = await ytpl('PLjSh2s1ASTgsSdjCgFbpo18RAYF_dHf46') //fetches playlist infos from YT
-    function getPlaylistInfo() { //function for the first user joining the afk channel
-      var i = 0
-      var tdur = 0
-
-      for (var property in playlist.items) { // goes through every item in playlist.items
-        queue[i] = playlist.items[property].shortUrl //saves url at index i
-        durations[i] = playlist.items[property].durationSec //saves durations in seconds at index i
-        musictitle[i] = playlist.items[property].title //saves title at index i
-        thumbnail[i] = playlist.items[property].bestThumbnail.url
-        tdur += playlist.items[property].durationSec * 1000 //adds up total durations for w/e reason
-        i++
-      }
-    }
-    const streaming = async () => {
+    const streaming = async (random) => {
       const currentdate = new Date() //gets current date
       const now = `${(currentdate.getHours() < 10 ? '0' : '') + currentdate.getHours()}:${(currentdate.getMinutes() < 10 ? '0' : '') + currentdate.getMinutes()}:${(currentdate.getSeconds() < 10 ? '0' : '') + currentdate.getSeconds()}`
       //creates current time string
-      const newdate = new Date(currentdate.getTime() + (durations[songIndex] * 1000)) //gets date by adding current date and song duration in ms
+      const newdate = new Date(currentdate.getTime() + (durations[random] * 1000)) //gets date by adding current date and song duration in ms
       const then = `${(newdate.getHours() < 10 ? '0' : '') + newdate.getHours()}:${(newdate.getMinutes() < 10 ? '0' : '') + newdate.getMinutes()}:${(newdate.getSeconds() < 10 ? '0' : '') + newdate.getSeconds()}`
       //creates target time string
-      const stream = ytdl(queue[songIndex], { seek: 0, volume: 0.5 }) //iterates stream from ytdl-core(url, options)
+      const stream = ytdl(queue[random], { seek: 0, volume: 0.5 }) //iterates stream from ytdl-core(url, options)
       dispatcher = await connection.play(stream, streamOptions) //defines StreamDispatcher from .play(stream, streamOptions)
-      console.log('\x1b[32m' ,`[${now}] - Now Playing: ${musictitle[songIndex]} - ETA: ${durations[songIndex]}s = ${then} [${songIndex + 1}/${queue.length}]\x1b[0m`)//logs [time] - [title] - [duration in s] = [target time] - [songposition/totalsongs]
+      console.log('\x1b[32m', `[${now}] - Now Playing: ${musictitle[random]} - ETA: ${durations[random]}s = ${then} [${random + 1}/${queue.length}]\x1b[0m`)//logs [time] - [title] - [duration in s] = [target time] - [songposition/totalsongs]
       dispatcher.on('error', console.error) //error log
-      if (songIndex == queue.length) {
-        songIndex = 0
-        console.log(`${round} Runde(n) fertig!`)
-        //reset index after 1 round and logs rounds
-      } else {
-        songIndex++
-        //continues SongIndex for next Song
-      }
     }
+
     if (userCountInChannel === 1) {
       console.log(userCountInChannel + ' User ist im Tartaros')
     } else {
       console.log(userCountInChannel + ' User sind im Tartaros')
     }
-    
     loopCheck = true
     if (userCountInChannel === 1 && loopCheck === true) {
-      getPlaylistInfo()
       await delay(3000)
       connection = await voiceChannel.join()
       await voiceChannel.guild.me.edit({ mute: false })
       while (loopCheck === true) {
-        streaming()
-        await delay(durations[songIndex] * 1000)
-        if (songIndex === queue.length) {
-          songIndex = 0
-        }
+        const random = Math.floor(Math.random() * queue.length)
+        songIndex = random
+        streaming(random)
+        await delay(durations[random] * 1000)
       }
     }
   }
-
   //leave event
   if (oldMember.channelID === '353903072310722561' && oldMember.channelID != newMember.channelID) {
     //checks channelID and where the user came from/went to
@@ -278,16 +265,16 @@ client.on("voiceStateUpdate", async function (oldMember, newMember) {
       }
 
     }
+    if (userCountInChannel === 1) {
+      console.log(userCountInChannel + ' User ist im Tartaros')
+    } else {
+      console.log(userCountInChannel + ' User sind im Tartaros')
+    }
     if (userCountInChannel <= 1) {
-      if (userCountInChannel === 1) {
-        console.log(userCountInChannel + ' User ist im Tartaros')
-      } else {
-        console.log(userCountInChannel + ' User sind im Tartaros')
-      }
       await leaving()
       loopCheck = false
     }
-    
+
   }
 })
 //END OF EVENT (VOICESTATEUPDATE)
@@ -333,35 +320,252 @@ client.on('message', async message => {
       //returns valid user infos
     }
   }
-  //COMMAND: NP || NOW PLAYING
-  if (command === 'np') {
-    if (!musictitle.length || songIndex == 0) {
-      return message.channel.send('Could Not Get Playlist Information, Please Make Sure The Bot Played Music At Least Once!')
-    } else {
-      const input = `${musictitle[songIndex - 1]} [${songIndex}/${queue.length}]\nDuration: ${durations[songIndex - 1]}s`
-      const embed = new Discord.MessageEmbed()
-        .setTitle(`-Now Playing-`)
-        .setColor(0x51267)
-        .setThumbnail(thumbnail[songIndex - 1])
-        .addFields({ name: 'Current Song:', value: input, inline: true });
-
-      return message.channel.send(embed)
-    }
+  if (command === 'playlist') {
+    return message.channel.send('https://www.youtube.com/playlist?list=PLjSh2s1ASTgsSdjCgFbpo18RAYF_dHf46')
   }
-  if (command === 'queue') {
-    var next5 = []
-    for (let i = 0; i != 5; i++) {
-      next5[i] = `○ ${musictitle[songIndex + i]} [${songIndex + 1 + i}/${queue.length}]`
-    }
-    if (!musictitle.length) {
-      return message.channel.send('Could Not Get Playlist Information, Please Make Sure The Bot Played Music At Least Once!')
-    } else {
+  //COMMAND: QUOTE
+  if (command === 'quote') {
+    //$quote sur @User MessageID  $quote add @User ID
+    const sur = args[0]
+    if (sur === 'add') {
+      //add new quote to database
+      const msgID = args[1]
+      if (!args.length) {
+        return message.channel.send('no args given')
+      } else if (!msgID) {
+        return message.channel.send('no message ID given')
+      } else if (isNaN(msgID)) {
+        return message.channel.send('Please use a valid ID!')
+      }
+      const channel = message.channel
+      var fetchedMessage
+
+      try {
+        fetchedMessage = channel.messages.fetch(msgID).then((value) => {
+          return value
+        })
+      } catch (error) {
+        return message.channel.send('Please use this command in the channel that the quote was sent in!')
+      }
+
+      const msgUserID = (await fetchedMessage).author.id
+      const msgCacheID = (await fetchedMessage).id
+      const msgChannel = (await fetchedMessage).channel.id
+      const msgContent = (await fetchedMessage).content
+
+      var uid
+      for (var i = 0; i < quotes.users.length; i++) {
+        if (msgUserID == quotes.users[i].id) {
+          uid = i
+        }
+      }
+      if (!uid && uid != 0) {
+        const input = {
+          id: msgUserID, //save user id once
+          message: [msgID], //save message ID for fetch usage
+          channel: [msgChannel] //save channel ID for fetch usage
+        }
+        quotes.users.push(input) //append to json
+      } else {
+        for (var i = 0; i < quotes.users[uid].message.length; i++) {
+          if (msgID == quotes.users[uid].message[i]) {
+            return message.channel.send('This Quote was already added before!')
+          }
+        }
+        quotes.users[uid].message.push(msgCacheID) //append to json
+        quotes.users[uid].channel.push(msgChannel) //append to json
+      }
+      fs.writeFile('Storage/quotes.json', JSON.stringify(quotes), (err) => {
+        if (err) console.error(err)
+      }); //write any changes
+
+      try {
+        const embed = new Discord.MessageEmbed()
+          .setTitle(`-New Quote Added-`)
+          .setColor(0x51267)
+          .setThumbnail(message.guild.iconURL())
+          .addFields(
+            { name: 'Author:', value: `<@${msgUserID}>` },
+            { name: 'Channel:', value: `<#${msgChannel}>` },
+            { name: 'Inhalt:', value: msgContent },
+            { name: 'ID:', value: msgID }
+          );
+        return message.channel.send(embed)
+      } catch (error) {
+        return message.channel.send('Could not create message embed! ')
+      }
+    } else if (sur === 'delete') {
+      //check user permission first
+      //$quote delete ID
+      if (message.member.hasPermission("VIEW_AUDIT_LOG")) {
+        const toDelete = args[1]
+        if (isNaN(toDelete)) {
+          return message.channel.send('Please provide a valid ID!')
+        }
+        var check
+        for (var i = 0; i < quotes.users.length; i++) {
+          if (!quotes.users[i].message.length) {
+            quotes.users.splice(i, 1)
+          } else {
+            for (var j = 0; j < quotes.users[i].message.length; j++) {
+              if (quotes.users[i].message[j] == toDelete) {
+                quotes.users[i].message.splice(j, 1)
+                quotes.users[i].channel.splice(j, 1)
+                check = true
+              }
+            }
+          }
+        }
+        fs.writeFile('Storage/quotes.json', JSON.stringify(quotes), (err) => {
+          if (err) console.error(err)
+        }); //write any changes
+        if (!check) {
+          return message.channel.send('ID not found!')
+        } else {
+          message.channel.send('Quote was successfully removed')
+        }
+      }
+    } else if (sur === 'help') {
+      //give help menu
+      const argument = args[1]
+      const namearr = ['add', 'delete', 'get', 'help', 'random']
+      const descarr = ['adds a new quote to the database', 'deletes a quote from the database', 'gets a random quote by a specified user', 'shows you the help menu', 'gives you a random quote by a random user']
+      const usearr = ['$quote add MessageID', '$quote delete MessageID', '$quote get @User', '$quote help [commands optional]', '$quote random']
+      var i
+      if (!argument) {
+        //no arguments were given
+      } else if (namearr.indexOf(argument) >= 0) {
+        i = namearr.indexOf(argument);
+      } else {
+        return message.channel.send(`missing/wrong argument(s), please refer to [$wge help]`)
+      }
+      if (!argument) {
+        const embed = new Discord.MessageEmbed()
+          .setTitle("-Command List-")
+          .addFields({ name: 'Commands:', value: namearr, inline: true })
+          .setDescription(`${namearr.length} Commands available!`)
+          .setColor(0x51267)
+          .setTimestamp()
+          .setThumbnail(message.guild.iconURL())
+          .setFooter("please notify my creator for further help")
+        return message.channel.send(embed);
+      } else {
+        const embed = new Discord.MessageEmbed()
+          .setTitle(namearr[i])
+          .setDescription(descarr[i])
+          .addFields({ name: 'Usage:', value: usearr[i], inline: true })
+          .setColor(0x51267)
+          .setTimestamp()
+          .setThumbnail(message.guild.iconURL())
+          .setFooter("please notify my creator for further help")
+        return message.channel.send(embed);
+      }
+    } else if (sur === 'random') {
+      //give random quote from any user
+      const userRandom = Math.floor(Math.random() * quotes.users.length)
+      try {
+        const msgRandom = Math.floor(Math.random() * quotes.users[userRandom].message.length)
+      } catch (error) {
+        return message.channel.send('Could not get random quote!')
+      }
+      var channel
+      var fetchedMessage
+      var fetchedID
+
+      try {
+        channel = client.channels.cache.get(quotes.users[userRandom].channel[msgRandom]).messages.fetch(quotes.users[userRandom].message[msgRandom])
+        fetchedMessage = (await channel).content
+        fetchedID = (await channel).id
+      } catch (error) {
+        return message.channel.send('Could not fetch message!').then(console.log(error))
+      }
       const embed = new Discord.MessageEmbed()
-        .setTitle(`-Current Tartaros Queue-`)
+        .setTitle(`-Quote-`)
         .setColor(0x51267)
         .setThumbnail(message.guild.iconURL())
-        .addFields({ name: 'Next 5 Songs:', value: next5, inline: true });
+        .addFields(
+          { name: 'Author:', value: `<@${quotes.users[userRandom].id}>` },
+          { name: 'Channel:', value: `<#${quotes.users[userRandom].channel[msgRandom]}>` },
+          { name: 'Inhalt:', value: fetchedMessage },
+          { name: 'ID', value: fetchedID }
+        );
+      return message.channel.send(embed)
 
+    } else if (sur === 'get') {
+      //give random quote from a specific user
+      const user = getUserFromMention(args[1])
+      if (!user) {
+        return message.channel.send('please mention a user!')
+      }
+      var uid
+      for (var i = 0; i < quotes.users.length; i++) {
+        if (user.id == quotes.users[i].id) {
+          uid = i
+        }
+      }
+      if (!uid && uid != 0) {
+        return message.channel.send('This User does not have a quote saved!')
+      }
+      const msgRandom = Math.floor(Math.random() * quotes.users[uid].message.length)
+      var channel
+      var fetchedMessage
+
+      try {
+        channel = client.channels.cache.get(quotes.users[uid].channel[msgRandom]).messages.fetch(quotes.users[uid].message[msgRandom])
+        fetchedMessage = (await channel).content
+      } catch (error) {
+        return message.channel.send('Could not fetch message!').then(console.log(error))
+      }
+      const embed = new Discord.MessageEmbed()
+        .setTitle(`-Quote-`)
+        .setColor(0x51267)
+        .setThumbnail(message.guild.iconURL())
+        .addFields(
+          { name: 'Author:', value: `<@${quotes.users[uid].id}>` },
+          { name: 'Channel:', value: `<#${quotes.users[uid].channel[msgRandom]}>` },
+          { name: 'Inhalt:', value: fetchedMessage });
+      return message.channel.send(embed)
+    } else {
+      return message.channel.send(`Please refer to $${command} help`)
+    }
+  }
+  if (command === 'restart') {
+    if (message.member.hasPermission("VIEW_AUDIT_LOG")) {
+      if (!dispatcher) {
+        return message.channel.send('No current dispatcher set!')
+      } else {
+        dispatcher.pause()
+        console.log('Music paused. . .')
+        const delay = ms => new Promise(res => setTimeout(res, ms)); //function used for await in while loop
+        await delay(1000)
+        dispatcher.resume()
+        console.log('Music resumed. . .')
+        message.channel.send('Music restarted after 1s')
+      }
+    }
+  }
+  //COMMAND: NP || NOW PLAYING
+  if (command === 'np') {
+    if (!dispatcher) {
+      return message.channel.send('Could Not Get Playlist Information, Please Make Sure The Bot Played Music At Least Once!')
+    } else {
+
+      function msToMinAndS(millis) {
+        var minutes = Math.floor(millis / 60000);
+        var seconds = ((millis % 60000) / 1000).toFixed(0);
+        return (
+          seconds == 60 ?
+          (minutes+1) + ":00" :
+          minutes + ":" + (seconds < 10 ? "0" : "") + seconds
+        );
+      }
+      const embed = new Discord.MessageEmbed()
+        .setAuthor(`-Now Playing-`, "https://cdn.discordapp.com/avatars/748205832918925363/014bcb936cf8a88818dc3b73130698ba.webp")
+        .setTitle(musictitle[songIndex], queue[songIndex])
+        .setURL(queue[songIndex])
+        .setDescription(`[${msToMinAndS(dispatcher.streamTime)} / ${msToMinAndS(durations[songIndex] * 1000)}]`)
+        .setColor(0x51267)
+        .setThumbnail(thumbnail[songIndex])
       return message.channel.send(embed)
     }
   }
@@ -371,7 +575,6 @@ client.on('message', async message => {
       return message.channel.send('Please specify something!')
     }
     const feedback = args.join(' ')
-    console.log(feedback)
     feedbackjson.feedback.push(feedback)
     fs.writeFile('Storage/feedback.json', JSON.stringify(feedbackjson), (err) => {
       if (err) console.error(err)
@@ -385,14 +588,14 @@ client.on('message', async message => {
       var feedbackarr = []
       var i = 0
       while (i != feedbackjson.feedback.length) {
-        feedback = feedbackjson.feedback[i]
+        feedback = `○ ${feedbackjson.feedback[i]}\n`
         feedbackarr.push(feedback)
         i++
       }
-      if (!feedback){
+      if (!feedback) {
         return message.channel.send('No messages in inbox!')
       }
-      
+
       const embed = new Discord.MessageEmbed()
         .setTitle(`-Feedback Inbox-`)
         .setColor(0x51267)
@@ -497,44 +700,41 @@ client.on('message', async message => {
         return message.channel.send(`missing argument(s), please refer to [$help ${command}]`)
       }
       var theme = args.join(' ').slice(args[0].length + args[1].length + 2)
-      console.log(theme)
-      console.log(args)
       theme = theme.trimStart()
 
-      var uid = 0
-      var i = 0
+      var uid
       var search = 0
 
       while (search != wgelist.teilnahme.length) {
-        if (wgelist.teilnahme[search].time) {
-          delete wgelist.teilnahme[search].time
-          delete wgelist.teilnahme[search].theme
-          fs.writeFile('Storage/wge.json', JSON.stringify(wgelist), (err) => {
-            if (err) console.error(err)
-          });
+        if (wgelist.teilnahme[search].id === user.id) {
+          uid = search
         }
         search++
         //searches database for existing data and deletes excess entries
       }
-
-      while (i != wgelist.teilnahme.length) {
-        if (wgelist.teilnahme[i].id === user.id) {
-          uid = i
-        }
-        i++
-        //searches database for user and save position
-      }
-
       if (!wgelist.teilnahme[uid]) {
         return message.channel.send(`${user} ist noch nicht in der Teilnehmerliste!`)
         //if user doesn't exist in the database, return message
       } else if (wgelist.teilnahme[uid].yn === "n") {
-        message.channel.send(`${user} nimmt nicht an WGE teil! Bitte wähle eine andere Person`)
+        return message.channel.send(`${user} nimmt nicht an WGE teil! Bitte wähle eine andere Person`)
         //if user does exist in the database, but doesn't participate at WGE, return message
       } else if (wgelist.teilnahme[uid].yn === "y") {
         message.channel.send(`${user}, du wurdest ausgewählt! Du hast nun 7 Tage Zeit, um deine Expertise zum Thema "${theme}" zur Schau zu stellen`)
         //if user does exist in the databse and agrees to particpate, then return message and theme and start timer
-
+        var i = 0
+        while (i != wgelist.teilnahme.length) {
+          if (wgelist.teilnahme[i].theme) {
+            wgelist.teilnahme[i].tickets = 0
+            delete wgelist.teilnahme[i].time
+            delete wgelist.teilnahme[i].theme
+            console.log('Vorheriges WGE beendet und geloescht!')
+          } else {
+            if (wgelist.teilnahme[i].yn === 'y') {
+              wgelist.teilnahme[i].tickets++
+            }
+          }
+          i++
+        }
 
         var time = new Date()
         //get current time in ms
@@ -555,7 +755,6 @@ client.on('message', async message => {
       theme = theme.trimStart()
 
       //gets user by % chance from wge
-      var uid = 0
       var i = 0
       var j = 0
       var ticketpool = []
@@ -567,13 +766,15 @@ client.on('message', async message => {
         if (wgelist.teilnahme[i].yn === 'y') {
           alltickets += wgelist.teilnahme[i].tickets
         }
-        if (wgelist.teilnahme[i].time) {
+        if (wgelist.teilnahme[i].theme) {
+          wgelist.teilnahme[i].tickets = 0
           delete wgelist.teilnahme[i].time
           delete wgelist.teilnahme[i].theme
           console.log('Vorheriges WGE beendet und geloescht!')
         }
         i++
       }
+
       var i = 0
       while (ticketpool.length < alltickets) {
         ticketpool[i] = wgelist.teilnahme[j].id
@@ -655,8 +856,6 @@ client.on('message', async message => {
           //write changes to database
         }
       }
-      console.log(`${user} wurde von der WGE Teilnehmerliste entfernt`)
-      //log user
     } else if (sur === 'add') {
       var user = getUserFromMention(args[1])
       if (!user) {
@@ -703,19 +902,19 @@ client.on('message', async message => {
           //write chagne to database
         }
       }
-      console.log(`${user} wurde zur WGE Teilnehmerliste hinzugefügt`)
-      //log user
     } else if (sur === 'time') {
       var uid
       var i = 0
+      var check = 0
 
       while (i != wgelist.teilnahme.length) {
         if (wgelist.teilnahme[i].time) {
           uid = i
+          check = 1
         }
         i++
       }
-      if (!uid) {
+      if (check == 0) {
         return message.channel.send('Gerade ist kein aktiver WGE')
       }
       if (wgelist.teilnahme[uid].time) {
@@ -1463,7 +1662,7 @@ client.on('message', async message => {
     const embed = new Discord.MessageEmbed()
       .setColor(7419530)
       .setTimestamp()
-      .setAuthor(`PET!`)
+      .setAuthor(`PAT!`)
       .setFooter(`gesendet von ${message.author.username}`)
       .setImage(gif);
     return message.channel.send(content).then(message.channel.send(embed))
